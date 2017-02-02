@@ -4,4 +4,8 @@ version = "0.1.0"
 authors = ["André Roque Matheus <andre.matheus@keyrus.com.br>"]
 
 [dependencies]
+num = "0.1.36"
 
+[[bin]]
+name = "rpncalculator"
+path = "src/rpncalculator.rs"
