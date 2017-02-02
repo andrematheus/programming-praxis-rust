@@ -1,0 +1,7 @@
+[package]
+name = "programming-praxis-rust"
+version = "0.1.0"
+authors = ["André Roque Matheus <andre.matheus@keyrus.com.br>"]
+
+[dependencies]
+
