@@ -37,15 +37,19 @@ fn binary_operation<F>(s: &mut CalcStack, f: F) -> Result
     Ok(())
 }
 
-fn add_operator(s: &mut CalcStack) -> Result {
-    binary_operation(s, |x, y| x + y)
+fn default_operators() -> OperatorsMap {
+    fn add_operator(s: &mut CalcStack) -> Result {
+        binary_operation(s, |x, y| x + y)
+    }
+
+    let mut default_operators: OperatorsMap = collections::BTreeMap::new();
+    default_operators.insert("+", add_operator);
+    default_operators
 }
 
 impl RpnCalculator {
     fn new() -> RpnCalculator {
-        let mut default_operators: OperatorsMap = collections::BTreeMap::new();
-        default_operators.insert("+", add_operator);
-        RpnCalculator { stack: Vec::new(), operators: default_operators }
+        RpnCalculator { stack: Vec::new(), operators: default_operators() }
     }
 
     fn new_with_operators(operators: OperatorsMap) -> RpnCalculator {
