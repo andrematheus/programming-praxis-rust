@@ -8,8 +8,8 @@ pub struct RpnCalculator {
 
 #[derive(Debug)]
 pub enum RpnCalculatorError {
-    EmptyStack,
     ParsingError,
+    NotEnoughOperands,
 }
 
 impl From<num::ParseFloatError> for RpnCalculatorError {
@@ -24,8 +24,8 @@ pub type OperatorFn = fn(&mut CalcStack) -> Result;
 pub type OperatorsMap = collections::BTreeMap<&'static str, OperatorFn>;
 
 fn add_two(s: &mut CalcStack) -> Result {
-    let x = s.pop().ok_or(RpnCalculatorError::EmptyStack)?;
-    let y = s.pop().ok_or(RpnCalculatorError::EmptyStack)?;
+    let x = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
+    let y = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
     let result = x + y;
     s.push(result);
     Ok(())
@@ -127,10 +127,14 @@ mod tests {
     }
 
     #[test]
-    fn should_return_error_when_adding_with_empty_stack() {
+    fn should_return_error_when_adding_without_enough_operands() {
         let mut calc = make_calculator();
         let result = calc.evaluate("+");
         assert!(result.is_err(), "Should return error because '+' expects two operands");
+        match result {
+            Err(RpnCalculatorError::NotEnoughOperands) => (),
+            _ => assert!(false, "Should return NotEnoughOperands error"),
+        }
     }
 
     #[test]
