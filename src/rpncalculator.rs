@@ -60,6 +60,10 @@ impl RpnCalculator {
         self.operators.append(&mut operators);
     }
 
+    fn add_operator(&mut self, symb: &'static str, f: OperatorFn) {
+        self.operators.insert(symb, f);
+    }
+
     fn evaluate(&mut self, input: &str) -> Result {
         let mut tokens = input.split_whitespace();
         loop {
@@ -83,10 +87,6 @@ impl RpnCalculator {
 
     fn top(&self) -> f64 {
         *self.stack.last().unwrap()
-    }
-
-    fn pop(&mut self) -> f64{
-        self.stack.pop().unwrap()
     }
 
     fn parse_and_push(&mut self, token: &str) -> Result {
@@ -131,9 +131,14 @@ mod tests {
     #[test]
     fn should_add_two_f64_to_stack() {
         let mut calc = make_calculator();
+        fn pop(s: &mut CalcStack) -> Result {
+            s.pop();
+            Ok(())
+        }
+        calc.add_operator("X", pop);
         calc.evaluate("2.5 3.2").unwrap();
         assert_eq!(3.2, calc.top());
-        calc.pop();
+        calc.evaluate("X").unwrap();
         assert_eq!(2.5, calc.top());
     }
 
@@ -156,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn should_use_operator_passed_at_construction_time() {
+    fn should_use_operators_passed_at_construction_time() {
         let mut operators: OperatorsMap = collections::BTreeMap::new();
         fn test_op(s: &mut CalcStack) -> Result {
             s.push(10.0);
@@ -170,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn should_extend_default_operators_with_operators_passed_at_construction() {
+    fn should_extend_default_operators_with_operators() {
         let mut operators: OperatorsMap = collections::BTreeMap::new();
         fn test_op(s: &mut CalcStack) -> Result {
             s.push(10.0);
@@ -179,6 +184,19 @@ mod tests {
         operators.insert("?", test_op);
         let mut calc = make_calculator();
         calc.add_operators(operators);
+        let result = calc.evaluate("? 2 +");
+        assert!(result.is_ok(), "Should return ok as input is valid");
+        assert_eq!(12.0, calc.top(), "Should have returned result of 10.0 + 2 at the top");
+    }
+
+    #[test]
+    fn should_extend_default_operators_with_operator() {
+        fn test_op(s: &mut CalcStack) -> Result {
+            s.push(10.0);
+            Ok(())
+        }
+        let mut calc = make_calculator();
+        calc.add_operator("?", test_op);
         let result = calc.evaluate("? 2 +");
         assert!(result.is_ok(), "Should return ok as input is valid");
         assert_eq!(12.0, calc.top(), "Should have returned result of 10.0 + 2 at the top");
