@@ -34,7 +34,15 @@ macro_rules! new_operator {
             Ok(())
         }
         $ops.insert($name, opfn);
-    }}
+    }};
+    ($ops:expr, $name:expr, $stackvar:ident, $code:block) => {{
+        fn opfn(s: &mut CalcStack) -> Result {
+            let $stackvar = s;
+            $code;
+            Ok(())
+        }
+        $ops.insert($name, opfn);
+    }};
 }
 
 fn default_operators() -> OperatorsMap {
@@ -166,6 +174,15 @@ mod tests {
         let result = calc.evaluate("? 2 +");
         assert!(result.is_ok(), "Should return ok as input is valid");
         assert_eq!(12.0, calc.top(), "Should have returned result of 10.0 + 2 at the top");
+    }
+
+    #[test]
+    fn should_be_possible_to_add_operator_that_operates_on_stack() {
+        let mut calc = make_calculator();
+        new_operator!(calc.operators, "?", s, { s.pop(); });
+        let result = calc.evaluate("2 3 ?");
+        assert!(result.is_ok());
+        assert_eq!(2.0, calc.top(), "top should be popped");
     }
 }
 
