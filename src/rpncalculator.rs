@@ -56,6 +56,10 @@ impl RpnCalculator {
         RpnCalculator { stack: Vec::new(), operators: operators }
     }
 
+    fn add_operators(&mut self, mut operators: OperatorsMap) {
+        self.operators.append(&mut operators);
+    }
+
     fn evaluate(&mut self, input: &str) -> Result {
         let mut tokens = input.split_whitespace();
         loop {
@@ -163,6 +167,21 @@ mod tests {
         let result = calc.evaluate("?");
         assert!(result.is_ok(), "Should return ok as input is valid");
         assert_eq!(10.0, calc.top(), "Should have returned value at the top");
+    }
+
+    #[test]
+    fn should_extend_default_operators_with_operators_passed_at_construction() {
+        let mut operators: OperatorsMap = collections::BTreeMap::new();
+        fn test_op(s: &mut CalcStack) -> Result {
+            s.push(10.0);
+            Ok(())
+        }
+        operators.insert("?", test_op);
+        let mut calc = make_calculator();
+        calc.add_operators(operators);
+        let result = calc.evaluate("? 2 +");
+        assert!(result.is_ok(), "Should return ok as input is valid");
+        assert_eq!(12.0, calc.top(), "Should have returned result of 10.0 + 2 at the top");
     }
 }
 
