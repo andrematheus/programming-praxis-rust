@@ -23,28 +23,24 @@ pub type CalcStack = Vec<f64>;
 pub type OperatorFn = fn(&mut CalcStack) -> Result;
 pub type OperatorsMap = collections::BTreeMap<&'static str, OperatorFn>;
 
-fn pop_two(s: &mut CalcStack) -> std::result::Result<(f64, f64), RpnCalculatorError> {
-    let x = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
-    let y = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
-    Ok((x, y))
-}
-
-fn binary_operation<F>(s: &mut CalcStack, f: F) -> Result
-    where F: Fn(f64, f64) -> f64 {
-    let (x, y) = pop_two(s)?;
-    let result = f(x, y);
-    s.push(result);
-    Ok(())
+macro_rules! binop {
+    ($ops:expr, $name:expr, $op:expr) => {{
+        fn opfn(s: &mut CalcStack) -> Result {
+            let x = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
+            let y = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
+            let result = $op(x, y);
+            s.push(result);
+            Ok(())
+        }
+        $ops.insert($name, opfn);
+    }}
 }
 
 fn default_operators() -> OperatorsMap {
-    fn add_operator(s: &mut CalcStack) -> Result {
-        binary_operation(s, |x, y| x + y)
-    }
+    let mut ops: OperatorsMap = collections::BTreeMap::new();
+    binop!(ops, "+", |x, y| x + y);
 
-    let mut default_operators: OperatorsMap = collections::BTreeMap::new();
-    default_operators.insert("+", add_operator);
-    default_operators
+    ops
 }
 
 impl RpnCalculator {
