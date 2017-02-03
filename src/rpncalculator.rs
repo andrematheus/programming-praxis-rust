@@ -23,12 +23,13 @@ pub type CalcStack = Vec<f64>;
 pub type OperatorFn = fn(&mut CalcStack) -> Result;
 pub type OperatorsMap = collections::BTreeMap<&'static str, OperatorFn>;
 
-macro_rules! binop {
-    ($ops:expr, $name:expr, $op:expr) => {{
+macro_rules! new_operator {
+    ($ops:expr, $name:expr, [ $( $var:ident ),* ], $code:block) => {{
         fn opfn(s: &mut CalcStack) -> Result {
-            let x = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
-            let y = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
-            let result = $op(x, y);
+            $(
+                let $var = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
+            )*
+            let result = { $code };
             s.push(result);
             Ok(())
         }
@@ -38,7 +39,7 @@ macro_rules! binop {
 
 fn default_operators() -> OperatorsMap {
     let mut ops: OperatorsMap = collections::BTreeMap::new();
-    binop!(ops, "+", |x, y| x + y);
+    new_operator!(ops, "+", [x, y], { x + y });
 
     ops
 }
@@ -50,14 +51,6 @@ impl RpnCalculator {
 
     fn new_with_operators(operators: OperatorsMap) -> RpnCalculator {
         RpnCalculator { stack: Vec::new(), operators: operators }
-    }
-
-    fn add_operators(&mut self, mut operators: OperatorsMap) {
-        self.operators.append(&mut operators);
-    }
-
-    fn add_operator(&mut self, symb: &'static str, f: OperatorFn) {
-        self.operators.insert(symb, f);
     }
 
     fn evaluate(&mut self, input: &str) -> Result {
@@ -127,15 +120,11 @@ mod tests {
     #[test]
     fn should_add_two_f64_to_stack() {
         let mut calc = make_calculator();
-        fn pop(s: &mut CalcStack) -> Result {
-            s.pop();
-            Ok(())
-        }
-        calc.add_operator("X", pop);
+        new_operator!(calc.operators, "X", [_x, _y], {0.0});
         calc.evaluate("2.5 3.2").unwrap();
         assert_eq!(3.2, calc.top());
         calc.evaluate("X").unwrap();
-        assert_eq!(2.5, calc.top());
+        assert_eq!(0.0, calc.top());
     }
 
     #[test]
@@ -172,27 +161,8 @@ mod tests {
 
     #[test]
     fn should_extend_default_operators_with_operators() {
-        let mut operators: OperatorsMap = collections::BTreeMap::new();
-        fn test_op(s: &mut CalcStack) -> Result {
-            s.push(10.0);
-            Ok(())
-        }
-        operators.insert("?", test_op);
         let mut calc = make_calculator();
-        calc.add_operators(operators);
-        let result = calc.evaluate("? 2 +");
-        assert!(result.is_ok(), "Should return ok as input is valid");
-        assert_eq!(12.0, calc.top(), "Should have returned result of 10.0 + 2 at the top");
-    }
-
-    #[test]
-    fn should_extend_default_operators_with_operator() {
-        fn test_op(s: &mut CalcStack) -> Result {
-            s.push(10.0);
-            Ok(())
-        }
-        let mut calc = make_calculator();
-        calc.add_operator("?", test_op);
+        new_operator!(calc.operators, "?", [], { 10.0 });
         let result = calc.evaluate("? 2 +");
         assert!(result.is_ok(), "Should return ok as input is valid");
         assert_eq!(12.0, calc.top(), "Should have returned result of 10.0 + 2 at the top");
