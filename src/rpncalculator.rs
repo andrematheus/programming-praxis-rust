@@ -85,9 +85,22 @@ pub type OperatorsMap = collections::BTreeMap<&'static str, OperatorFn>;
 macro_rules! new_operator {
     ($ops:expr, $name:expr, [ $( $var:ident ),* ], $code:block) => {{
         fn opfn(s: &mut CalcStack) -> CalcResult {
+            let i = s.len();
             $(
-                let $var = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
-            )*
+                let $var: f64;
+                if i == 0 {
+                    return Err(RpnCalculatorError::NotEnoughOperands);
+                } else {
+                    $var = s[i - 1];
+                }
+                let i = i - 1;
+            )*;
+            let n = s.len() - i;
+            if n > 0 {
+                for _ in 0..n - 1 {
+                    s.pop();
+                }
+            }
             let result = { $code };
             s.push(result);
             Ok(())
@@ -279,5 +292,19 @@ mod tests {
         let result = calc.evaluate("2 3 ?");
         assert!(result.is_ok());
         assert_eq!(2.0, *calc.top().unwrap(), "top should be popped");
+    }
+
+    #[test]
+    fn should_not_pop_without_enough_operands() {
+        let mut calc = make_calculator();
+        calc.evaluate("1.0").expect("Should push to the stack");
+        let result = calc.evaluate("+");
+        assert!(result.is_err(), "Should return error because '+' expects two operands");
+        match result {
+            Err(RpnCalculatorError::NotEnoughOperands) => (),
+            _ => assert!(false, "Should return NotEnoughOperands error"),
+        }
+        assert_eq!(1.0, *calc.top().expect("Stack should not be popped since there was not enough operands"),
+                   "Stack should not be popped since there was not enough operands");
     }
 }
