@@ -1,5 +1,21 @@
+//!
+//! # Problem description:
+//! #
+//! # RPN Calculator
+//! *February 19, 2009*
+//!
+//! Implement an RPN calculator that takes an expression like 19 2.14 +
+//! 4.5 2 4.3 / - * which is usually expressed as (19 + 2.14) * (4.5 - 2 /
+//! 4.3) and responds with 85.2974. The program should read expressions
+//! from standard input and print the top of the stack to standard output
+//! when a newline is encountered. The program should retain the state of
+//! the operand stack between expressions.
+//!
+
 use std::num;
 use std::collections;
+use std::result;
+use std::io;
 
 pub struct RpnCalculator {
     stack: CalcStack,
@@ -10,6 +26,8 @@ pub struct RpnCalculator {
 pub enum RpnCalculatorError {
     ParsingError,
     NotEnoughOperands,
+    Quit,
+    IOError,
 }
 
 impl From<num::ParseFloatError> for RpnCalculatorError {
@@ -18,14 +36,21 @@ impl From<num::ParseFloatError> for RpnCalculatorError {
     }
 }
 
-pub type Result = std::result::Result<(), RpnCalculatorError>;
+impl From<io::Error> for RpnCalculatorError {
+    fn from(_: io::Error) -> RpnCalculatorError {
+        RpnCalculatorError::IOError
+    }
+}
+
+pub type CalcResult = result::Result<(), RpnCalculatorError>;
 pub type CalcStack = Vec<f64>;
-pub type OperatorFn = fn(&mut CalcStack) -> Result;
+pub type OperatorFn = fn(&mut CalcStack) -> CalcResult;
 pub type OperatorsMap = collections::BTreeMap<&'static str, OperatorFn>;
 
+#[macro_export]
 macro_rules! new_operator {
     ($ops:expr, $name:expr, [ $( $var:ident ),* ], $code:block) => {{
-        fn opfn(s: &mut CalcStack) -> Result {
+        fn opfn(s: &mut CalcStack) -> CalcResult {
             $(
                 let $var = s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?;
             )*
@@ -36,16 +61,15 @@ macro_rules! new_operator {
         $ops.insert($name, opfn);
     }};
     ($ops:expr, $name:expr, $stackvar:ident, $code:block) => {{
-        fn opfn(s: &mut CalcStack) -> Result {
+        fn opfn(s: &mut CalcStack) -> CalcResult {
             let $stackvar = s;
-            $code;
-            Ok(())
+            $code
         }
         $ops.insert($name, opfn);
     }};
 }
 
-fn default_operators() -> OperatorsMap {
+pub fn default_operators() -> OperatorsMap {
     let mut ops: OperatorsMap = collections::BTreeMap::new();
     new_operator!(ops, "+", [x, y], { x + y });
 
@@ -53,15 +77,15 @@ fn default_operators() -> OperatorsMap {
 }
 
 impl RpnCalculator {
-    fn new() -> RpnCalculator {
+    pub fn new() -> RpnCalculator {
         RpnCalculator { stack: Vec::new(), operators: default_operators() }
     }
 
-    fn new_with_operators(operators: OperatorsMap) -> RpnCalculator {
+    pub fn new_with_operators(operators: OperatorsMap) -> RpnCalculator {
         RpnCalculator { stack: Vec::new(), operators: operators }
     }
 
-    fn evaluate(&mut self, input: &str) -> Result {
+    pub fn evaluate(&mut self, input: &str) -> CalcResult {
         let mut tokens = input.split_whitespace();
         loop {
             let next = tokens.next();
@@ -73,7 +97,7 @@ impl RpnCalculator {
         Ok(())
     }
 
-    fn parse_token(&mut self, token: &str) -> Result {
+    fn parse_token(&mut self, token: &str) -> CalcResult {
         if self.operators.contains_key(token) {
             let operator = self.operators.get(token).expect("Already checked if operators contains token");
             operator(&mut self.stack)
@@ -82,11 +106,11 @@ impl RpnCalculator {
         }
     }
 
-    fn top(&self) -> f64 {
+    pub fn top(&self) -> f64 {
         *self.stack.last().unwrap()
     }
 
-    fn parse_and_push(&mut self, token: &str) -> Result {
+    fn parse_and_push(&mut self, token: &str) -> CalcResult {
         let value: f64 = token.parse()?;
         self.stack.push(value);
         Ok(())
@@ -156,7 +180,7 @@ mod tests {
     #[test]
     fn should_use_operators_passed_at_construction_time() {
         let mut operators: OperatorsMap = collections::BTreeMap::new();
-        fn test_op(s: &mut CalcStack) -> Result {
+        fn test_op(s: &mut CalcStack) -> CalcResult {
             s.push(10.0);
             Ok(())
         }
@@ -179,12 +203,9 @@ mod tests {
     #[test]
     fn should_be_possible_to_add_operator_that_operates_on_stack() {
         let mut calc = make_calculator();
-        new_operator!(calc.operators, "?", s, { s.pop(); });
+        new_operator!(calc.operators, "?", s, { s.pop(); Ok(()) });
         let result = calc.evaluate("2 3 ?");
         assert!(result.is_ok());
         assert_eq!(2.0, calc.top(), "top should be popped");
     }
-}
-
-fn main() {
 }
