@@ -17,36 +17,70 @@ use std::collections;
 use std::result;
 use std::io;
 
-pub struct RpnCalculator {
-    stack: CalcStack,
-    operators: OperatorsMap,
-}
-
+/// All RPN Calculator errors
 #[derive(Debug)]
 pub enum RpnCalculatorError {
+    /// Error parsing input
     ParsingError,
+    /// Not enough operands in the stack for doing the operation
     NotEnoughOperands,
+    /// This error signals that the calculator has to quit (maybe should not be an error?)
     Quit,
+    /// This is used when there is an IO error outside the calc, maybe should be done some other way.
+    /// Both Quit and IOError could be replaced by some standardized way of defining custom returns
+    /// for calculator operators.
     IOError,
 }
 
-impl From<num::ParseFloatError> for RpnCalculatorError {
-    fn from(_: num::ParseFloatError) -> RpnCalculatorError {
-        RpnCalculatorError::ParsingError
-    }
-}
-
-impl From<io::Error> for RpnCalculatorError {
-    fn from(_: io::Error) -> RpnCalculatorError {
-        RpnCalculatorError::IOError
-    }
-}
-
+/// The result used fo all calculator operations
 pub type CalcResult = result::Result<(), RpnCalculatorError>;
+/// The stack used by the calculator
 pub type CalcStack = Vec<f64>;
+/// The function each operator uses for mutating the calculator stack
 pub type OperatorFn = fn(&mut CalcStack) -> CalcResult;
+/// A mapping of string symbols to operator functions
 pub type OperatorsMap = collections::BTreeMap<&'static str, OperatorFn>;
 
+/// Defines new operators and putting them in an operators map.
+///
+/// There are two forms of this macro:
+///
+/// * Define an operator that takes *n* operands and returns a value to be pushed into the stack
+///
+/// ```
+/// #[macro_use]
+/// extern crate pprust;
+/// # fn main() {
+/// use pprust::rpncalculator::*;
+///
+/// let mut ops = default_operators();
+/// new_operator!(ops, "+", [x, y], { x + y });
+/// let mut stack : Vec<f64> = Vec::new();
+/// let f = ops.get("+").unwrap();
+/// stack.push(1.0);
+/// stack.push(2.0);
+/// f(&mut stack);
+/// assert_eq!(3.0, *stack.last().unwrap());
+/// # }
+/// ```
+///
+/// * Define an operator that operates directly on the stack
+///
+/// ```
+/// #[macro_use]
+/// extern crate pprust;
+/// # fn main() {
+/// use pprust::rpncalculator::*;
+/// let mut ops = default_operators();
+/// let mut stack : Vec<f64> = Vec::new();
+/// stack.push(1.0);
+/// new_operator!(ops, "p", s, { s.pop().ok_or(RpnCalculatorError::NotEnoughOperands)?; Ok(()) });
+/// let f = ops.get("p").unwrap();
+/// let res = f(&mut stack);
+/// assert!(res.is_ok());
+/// assert_eq!(0, stack.len());
+/// # }
+/// ```
 #[macro_export]
 macro_rules! new_operator {
     ($ops:expr, $name:expr, [ $( $var:ident ),* ], $code:block) => {{
@@ -69,6 +103,22 @@ macro_rules! new_operator {
     }};
 }
 
+/// This function builds an operators map with all the default
+/// operators the calculator supports. This map can be used to add
+/// more operators before creating a new calculator.
+/// See
+///
+/// # Example
+/// ```
+/// use pprust::rpncalculator::{default_operators, CalcResult};
+///
+/// let mut ops = default_operators();
+/// fn op(s: &mut Vec<f64>) -> CalcResult {
+///     s.push(2.0);
+///     Ok(())
+/// }
+/// ops.insert("?", op);
+/// ```
 pub fn default_operators() -> OperatorsMap {
     let mut ops: OperatorsMap = collections::BTreeMap::new();
     new_operator!(ops, "+", [x, y], { x + y });
@@ -76,15 +126,29 @@ pub fn default_operators() -> OperatorsMap {
     ops
 }
 
+/// The calculator
+pub struct RpnCalculator {
+    stack: CalcStack,
+    operators: OperatorsMap,
+}
+
 impl RpnCalculator {
+    /// Creates a new calculator with default operators
     pub fn new() -> RpnCalculator {
         RpnCalculator { stack: Vec::new(), operators: default_operators() }
     }
 
+    /// Creates a new calculator with the operators passed
     pub fn new_with_operators(operators: OperatorsMap) -> RpnCalculator {
         RpnCalculator { stack: Vec::new(), operators: operators }
     }
 
+    /// Returns the top of the calculator's stack
+    pub fn top(&self) -> Option<&f64> {
+        self.stack.last()
+    }
+
+    /// evaluates an input string and mutates the calculator
     pub fn evaluate(&mut self, input: &str) -> CalcResult {
         let mut tokens = input.split_whitespace();
         loop {
@@ -106,14 +170,22 @@ impl RpnCalculator {
         }
     }
 
-    pub fn top(&self) -> f64 {
-        *self.stack.last().unwrap()
-    }
-
     fn parse_and_push(&mut self, token: &str) -> CalcResult {
         let value: f64 = token.parse()?;
         self.stack.push(value);
         Ok(())
+    }
+}
+
+impl From<num::ParseFloatError> for RpnCalculatorError {
+    fn from(_: num::ParseFloatError) -> RpnCalculatorError {
+        RpnCalculatorError::ParsingError
+    }
+}
+
+impl From<io::Error> for RpnCalculatorError {
+    fn from(_: io::Error) -> RpnCalculatorError {
+        RpnCalculatorError::IOError
     }
 }
 
@@ -139,7 +211,7 @@ mod tests {
     fn should_add_f64_to_stack() {
         let mut calc = make_calculator();
         calc.evaluate("2.5").unwrap();
-        assert_eq!(2.5, calc.top());
+        assert_eq!(2.5, *calc.top().unwrap());
     }
 
     #[test]
@@ -154,16 +226,16 @@ mod tests {
         let mut calc = make_calculator();
         new_operator!(calc.operators, "X", [_x, _y], {0.0});
         calc.evaluate("2.5 3.2").unwrap();
-        assert_eq!(3.2, calc.top());
+        assert_eq!(3.2, *calc.top().unwrap());
         calc.evaluate("X").unwrap();
-        assert_eq!(0.0, calc.top());
+        assert_eq!(0.0, *calc.top().unwrap());
     }
 
     #[test]
     fn should_add_two_f64_in_stack() {
         let mut calc = make_calculator();
         calc.evaluate("2.5 3.2 +").unwrap();
-        assert_eq!(5.7, calc.top(), "Calcultor's top should be result of addition");
+        assert_eq!(5.7, *calc.top().unwrap(), "Calcultor's top should be result of addition");
     }
 
     #[test]
@@ -188,7 +260,7 @@ mod tests {
         let mut calc = make_calculator_with_operators(operators);
         let result = calc.evaluate("?");
         assert!(result.is_ok(), "Should return ok as input is valid");
-        assert_eq!(10.0, calc.top(), "Should have returned value at the top");
+        assert_eq!(10.0, *calc.top().unwrap(), "Should have returned value at the top");
     }
 
     #[test]
@@ -197,7 +269,7 @@ mod tests {
         new_operator!(calc.operators, "?", [], { 10.0 });
         let result = calc.evaluate("? 2 +");
         assert!(result.is_ok(), "Should return ok as input is valid");
-        assert_eq!(12.0, calc.top(), "Should have returned result of 10.0 + 2 at the top");
+        assert_eq!(12.0, *calc.top().unwrap(), "Should have returned result of 10.0 + 2 at the top");
     }
 
     #[test]
@@ -206,6 +278,6 @@ mod tests {
         new_operator!(calc.operators, "?", s, { s.pop(); Ok(()) });
         let result = calc.evaluate("2 3 ?");
         assert!(result.is_ok());
-        assert_eq!(2.0, calc.top(), "top should be popped");
+        assert_eq!(2.0, *calc.top().unwrap(), "top should be popped");
     }
 }

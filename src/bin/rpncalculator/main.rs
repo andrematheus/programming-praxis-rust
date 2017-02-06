@@ -20,7 +20,7 @@ fn main() {
         match res {
             Result::Err(RpnCalculatorError::Quit) => break,
             Result::Ok(_) => {
-                println!("{}", calc.top());
+                println!("{}", *calc.top().unwrap());
             }
             Result::Err(x) => {
                 println!("Erro: {:?}", x);
