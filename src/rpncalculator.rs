@@ -94,14 +94,16 @@ macro_rules! new_operator {
                     $var = s[i - 1];
                 }
                 let i = i - 1;
+                println!("Got {}", $var);
             )*;
             let n = s.len() - i;
             if n > 0 {
-                for _ in 0..n - 1 {
+                for _ in 0..n {
                     s.pop();
                 }
             }
             let result = { $code };
+            println!("Got result: {}", result);
             s.push(result);
             Ok(())
         }
@@ -134,8 +136,10 @@ macro_rules! new_operator {
 /// ```
 pub fn default_operators() -> OperatorsMap {
     let mut ops: OperatorsMap = collections::BTreeMap::new();
-    new_operator!(ops, "+", [x, y], { x + y });
-
+    new_operator!(ops, "+", [y, x], { x + y });
+    new_operator!(ops, "-", [y, x], { x - y });
+    new_operator!(ops, "*", [y, x], { x * y });
+    new_operator!(ops, "/", [y, x], { x / y });
     ops
 }
 
@@ -306,5 +310,35 @@ mod tests {
         }
         assert_eq!(1.0, *calc.top().expect("Stack should not be popped since there was not enough operands"),
                    "Stack should not be popped since there was not enough operands");
+    }
+
+    fn check_evaluation(input: &str, expected: f64) {
+        let mut calc = make_calculator();
+        let result = calc.evaluate(input);
+        assert!(result.is_ok());
+        let result = *calc.top().expect("Should have a result");
+        let delta = expected - result;
+        let expected_delta = 0.00001;
+        assert!(expected_delta > delta, "{} - {} > {}", expected, result, expected_delta);
+    }
+
+    #[test]
+    fn should_calculate_subtraction() {
+        check_evaluation("6 2 -", 4.0);
+    }
+
+    #[test]
+    fn should_calculate_division() {
+        check_evaluation("6 2 /", 3.0);
+    }
+
+    #[test]
+    fn should_calculate_multiplication() {
+        check_evaluation("6 2 *", 12.0);
+    }
+
+    #[test]
+    fn should_calculate_the_example_from_the_site() {
+        check_evaluation("19 2.14 + 4.5 2 4.3 / - *", 85.2974);
     }
 }
