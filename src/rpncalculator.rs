@@ -94,7 +94,6 @@ macro_rules! new_operator {
                     $var = s[i - 1];
                 }
                 let i = i - 1;
-                println!("Got {}", $var);
             )*;
             let n = s.len() - i;
             if n > 0 {
@@ -103,7 +102,6 @@ macro_rules! new_operator {
                 }
             }
             let result = { $code };
-            println!("Got result: {}", result);
             s.push(result);
             Ok(())
         }
