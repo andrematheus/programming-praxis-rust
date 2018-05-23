@@ -2,8 +2,6 @@ FROM andreroquem/rust-build
 
 MAINTAINER André Roque Matheus <amatheus@mac.com>
 
-RUN mkdir /app
+VOLUME/app
 
-COPY . /app
-
-RUN cd /app; cargo test
+CMD cd /app; cargo test
